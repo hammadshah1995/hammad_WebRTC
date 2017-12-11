@@ -9,6 +9,7 @@ import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 import android.view.View;
+import android.widget.Button;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -29,6 +30,7 @@ import org.webrtc.VideoSource;
 import org.webrtc.VideoTrack;
 import org.webrtc.DataChannel;
 import java.net.URISyntaxException;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 
 import io.socket.client.IO;
@@ -38,7 +40,7 @@ import io.socket.emitter.Emitter;
 
 public class MainActivity extends AppCompatActivity {
 
-    private static final String SIGNALING_URI = "https://dry-sands-51885.herokuapp.com/";
+    private static final String SIGNALING_URI = "http://192.168.0.53:7000";
     private static final String VIDEO_TRACK_ID = "video1";
     private static final String AUDIO_TRACK_ID = "audio1";
     private static final String LOCAL_STREAM_ID = "stream1";
@@ -57,12 +59,15 @@ public class MainActivity extends AppCompatActivity {
     private VideoRenderer otherPeerRenderer;
     private Socket socket;
     private boolean createOffer = false;
+
+    private DataChannel sendChannel;
+  Button connectButton;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         DataChannel abcd = new DataChannel(50);
-
+connectButton =(Button) findViewById(R.id.button);
         AudioManager audioManager = (AudioManager) this.getSystemService(Context.AUDIO_SERVICE);
         audioManager.setMode(AudioManager.MODE_IN_COMMUNICATION);
         audioManager.setSpeakerphoneOn(true);
@@ -102,6 +107,54 @@ String abc ="";
         }
 
     }
+    DataChannel.Observer localDataChannelObserver = new DataChannel.Observer() {
+
+        @Override
+        public void onBufferedAmountChange(long l) {
+
+        }
+
+        @Override
+        public void onStateChange() {
+
+            Log.d("rtcapp", "sendDataChannelObserver onStateChange() " + sendChannel.state().name());
+//           if (sendChannel.state() == DataChannel.State.OPEN) {
+//              String data = "from sendChannel to receiveChannel";
+//              ByteBuffer buffer = ByteBuffer.wrap(data.getBytes());
+//              sendChannel.send(new DataChannel.Buffer(buffer, false));
+//           }
+        }
+
+        @Override
+        public void onMessage(DataChannel.Buffer buffer) {
+
+            Log.d("rtcapp", "this shit finally works");
+            if (!buffer.binary) {
+                int limit = buffer.data.limit();
+                byte[] datas = new byte[limit];
+                buffer.data.get(datas);
+String recievedText = new String(datas);
+Button send = (Button) findViewById(R.id.send);
+send.setText(recievedText.toString());
+                Log.d("rtcapp", "this shit finally works " + recievedText);
+            }
+
+        }
+    };
+
+    public void onMessage(View button){
+        ByteBuffer buffer = ByteBuffer.wrap("shah ji".getBytes());
+        if (sendChannel.state()== DataChannel.State.OPEN){
+            Boolean my;
+            if(  sendChannel.send(new DataChannel.Buffer(buffer, false)))
+                my=true;
+            else
+                my=false;
+            //    sendChannel.send(new DataChannel.Buffer(buffer, false));
+            sendChannel.toString();
+            connectButton.setText("shah ji");}
+
+    }
 
     public void onConnect(View button) {
         if (peerConnection != null)
@@ -115,7 +168,10 @@ String abc ="";
                 new MediaConstraints(),
                 peerConnectionObserver);
 
-        peerConnection.addStream(localMediaStream);
+        sendChannel = peerConnection.createDataChannel("RTCDataChannel", new DataChannel.Init());
+sendChannel.registerObserver(localDataChannelObserver);
+
+    //  peerConnection.addStream(localMediaStream);
 
         try {
             socket = IO.socket(SIGNALING_URI);
@@ -173,6 +229,20 @@ String abc ="";
             });
 
             socket.connect();
+
+
+
+
+            ByteBuffer buffer = ByteBuffer.wrap("shah ji".getBytes());
+if (sendChannel.state()== DataChannel.State.OPEN){
+            Boolean my;
+            if(  sendChannel.send(new DataChannel.Buffer(buffer, false)))
+                my=true;
+            else
+                my=false;
+      //    sendChannel.send(new DataChannel.Buffer(buffer, false));
+sendChannel.toString();
+connectButton.setText("shah ji");}
         } catch (URISyntaxException e) {
             e.printStackTrace();
         }
@@ -225,16 +295,18 @@ String abc ="";
 
         @Override
         public void onIceConnectionReceivingChange(boolean b) {
-
+            Log.d("RTCAPP", "onIceConnectionReceivingChange(): " + b);
         }
 
         @Override
         public void onIceGatheringChange(PeerConnection.IceGatheringState iceGatheringState) {
-
+            Log.d("RTCAPP", "PeerConnectionObserver onIceGatheringChange() " + iceGatheringState.name());
         }
 
         @Override
         public void onIceCandidate(IceCandidate iceCandidate) {
+            Log.d("RTCAPP", "PeerConnectionObserver onIceCandidate: " + iceCandidate.toString());
+
             try {
                 JSONObject obj = new JSONObject();
                 obj.put(SDP_MID, iceCandidate.sdpMid);
@@ -260,11 +332,26 @@ String abc ="";
         @Override
         public void onDataChannel(DataChannel dataChannel) {
 
+            sendChannel =dataChannel;
+            sendChannel.registerObserver(localDataChannelObserver);
+
+//            ByteBuffer buffer = ByteBuffer.wrap("shah ji".getBytes());
+//            if (sendChannel.state()== DataChannel.State.OPEN){
+//                Boolean my;
+//                if(  sendChannel.send(new DataChannel.Buffer(buffer, false)))
+//                    my=true;
+//                else
+//                    my=false;
+//                //    sendChannel.send(new DataChannel.Buffer(buffer, false));
+//                sendChannel.toString();
+//        //       connectButton.setText("shah ji");
+//                }
         }
 
         @Override
         public void onRenegotiationNeeded() {
 
         }
+
     };
 }
